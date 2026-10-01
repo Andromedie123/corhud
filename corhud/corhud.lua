@@ -1,6 +1,6 @@
 addon.name    = 'corhud'
 addon.author  = 'Andromedie, Claude'
-addon.version = '1.00'
+addon.version = '1.2'
 addon.desc    = 'Corsair HUD: Quick Draw cards, Phantom Roll tracking, and Winning Streak merit auto-detect.'
 addon.link    = ''
 
@@ -75,6 +75,8 @@ ashita.events.register('command', 'corhud_command', function(e)
         merits.clear()
     elseif args[2] == 'merits' then
         merits.debug()
+    elseif args[2] == 'rollpackets' then
+        rolls.debug()
     else
         ui.showConfig[1] = not ui.showConfig[1]
     end

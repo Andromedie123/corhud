@@ -34,6 +34,8 @@ Either line can be hidden separately (see Settings).
 
 ### Rolls window
 Whenever you land one of your own Phantom Rolls, an entry appears with:
+- who the roll is on - `You` for rolls you cast on yourself, the member's
+  name for rolls on party members
 - the roll name, the number you rolled (or **BUST!** if you went over 11),
   and the roll's `L:lucky`/`U:unlucky` call-out pair, colour-coded to match
   the LUCKY/UNLUCKY tags
@@ -41,12 +43,36 @@ Whenever you land one of your own Phantom Rolls, an entry appears with:
 - whether the result was **LUCKY!**, **UNLUCKY!**, or neither
 - a countdown clock showing the time left on the roll
 
-Busts stay tracked too - the bust debuff on you lasts 5 minutes, and its
-entry clears the moment FFXI reports the bust wearing off. Your rolls
-are tracked up to the number you can genuinely hold at once - five at
-the base duration, up to seven with 5/5 Winning Streak - so rolls you
-keep up on different groups of players while rotating parties all stay
-visible.
+When several members hold the same roll, their rows merge into one
+(tTimers-style): `Evoker's Roll [2]` with the roll info once and the
+soonest-expiring member's countdown - just the `[N]` count, no member
+names. Busts always keep their own row. Death clears a member's rolls
+with them (the entity-update and 0x029 death channels tTimers watches),
+so a dead member stops counting toward the `[N]`.
+
+Each member keeps their own entries, so the same roll up on two members
+at once merges into one counted row (see above), and a member's row
+clears the moment their roll fades - the addon diffs the party buff
+snapshots (0x076) and your own effect snapshots (0x063) against each
+roll's status icon, matches
+the "loses the effect of X Roll" chat lines per name, and falls back to
+the detected duration plus a short grace. A successful Double-Up updates
+the roll's number and bonus in place without resetting the countdown
+(Double-Up keeps the roll's original expiry). The game caps any one
+member at two rolls; a third roll on them evicts their oldest, and the
+tracker mirrors that. A bust cancels the roll on the member it landed on
+and tracks the Bust debuff on you, clearing when Fold removes it or the
+game reports it wearing off.
+
+The **Track rolls** setting (tTimers-style dropdown) picks whose rolls
+the window follows: **Self Only** (the default - your own rolls, with
+the Phantom Roll+ bonus tables), **Party** (any Corsair in your party),
+or **Alliance** (any alliance member). Rolls another Corsair cast are
+attributed to their recipient the same way, but their bonus falls back
+to the base tables and their countdown uses the base 5:00 - their
+Phantom Roll+ gear and Winning Streak merits can't be read from here.
+Alliance members' fades rely on the countdown/grace timeout since their
+buff snapshots aren't sent to you.
 
 Your Winning Streak merit level is auto-detected so the countdown uses
 the real roll duration - 5:00 base plus 0:20 per merit. It is picked up
@@ -66,10 +92,12 @@ ability use and the merit menu packet), so the timers stay on screen
 even with no rolls active. Turn them off with the
 **Show Fold/Snake Eye timers** setting.
 
-An entry clears itself the moment FFXI reports you've lost that roll's
-effect. If that message is ever missed (e.g. a disconnect), it also
-auto-clears just past the auto-detected roll duration, so nothing gets
-stuck.
+An entry clears itself the moment the game reports that roll's effect
+ended - from the party/self effect snapshots or the chat message, so a
+fade never waits for the countdown to reach zero. If every channel is
+missed (e.g. the member is out of range, or a disconnect), the entry
+also auto-clears just past the auto-detected roll duration, so nothing
+gets stuck.
 
 Using Fold removes the oldest tracked bust first, matching HorizonXI's
 Fold behavior. The tracker also recognizes Fold's action packet and chat
@@ -94,6 +122,7 @@ result is received.
 | `/corhud wildcard` | Toggle the Wild Card window on/off |
 | `/corhud clear` | Forget tracked rolls, the Wild Card result, and the detected merits |
 | `/corhud merits` | Debug: print the client's merit list from memory |
+| `/corhud rollpackets` | Debug: dump the recent roll action packets (hex + parsed target blocks) |
 
 ## Settings
 
@@ -111,8 +140,15 @@ cap.
 
 ## Notes
 
-- Roll tracking only follows rolls **you** cast, not rolls other
-  Corsairs in your party land on you.
+- Roll tracking follows your own rolls by default; the **Track rolls**
+  setting extends it to every Corsair in the party or alliance (the same
+  three-way choice tTimers' buff tracker makes). Each entry is attributed
+  to the party member who received the roll - from the action packet's
+  applied-message target block, not the caster's dice block - and clears
+  when that member's roll fades (per the party buff snapshots, the same
+  packets the timers addon watches). Rolls other Corsairs cast show the
+  base bonus tables and a 5:00 countdown, since their Phantom Roll+ gear
+  and Winning Streak merits can't be read.
 - Winning Streak comes from the server's merit menu packet (0x08C)
   whenever the Merit Points menu is opened, and is also read from the
   client's merit points list at load (the same memory walk the Horizon

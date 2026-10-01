@@ -212,9 +212,14 @@ M.drawCardsWindow = function()
 end
 
 -- ----------------------------------------------------------------- rolls --
-local function drawActiveRoll(name, entry)
+local function drawActiveRoll(row)
+    local name = row.name
+    local entry = row.entry
+    local owner = row.owner
+    local members = row.merged
+
     local elapsed = os.time() - entry.at
-    local remaining = math.max(0, merits.getDuration() - elapsed)
+    local remaining = math.max(0, (entry.duration or merits.getDuration()) - elapsed)
     local mm = math.floor(remaining / 60)
     local ss = math.floor(remaining % 60)
 
@@ -231,10 +236,20 @@ local function drawActiveRoll(name, entry)
         statusText = 'NORMAL'
     end
 
-    -- Line 1: roll name, roll number, the (L:x/U:y) call-out pair with
-    -- each letter in its own status colour, and the countdown itself
-    -- (the word "remaining" was clutter, so only the time is shown).
+    -- Line 1: who the roll is on ('You' for the local player), the roll
+    -- name (plus a [N] member count when several members share it), roll
+    -- number, the (L:x/U:y) call-out pair with each letter in its own
+    -- status colour, and the countdown itself (the word "remaining" was
+    -- clutter, so only the time is shown).
+    if owner ~= nil then
+        drawTextDisabled(owner .. ' ·')
+        imgui.SameLine()
+    end
     drawText(name, statusColor or { 1, 1, 1, 1 })
+    if members ~= nil then
+        imgui.SameLine()
+        drawTextDisabled(string.format('[%d]', #members))
+    end
     imgui.SameLine()
     if not entry.bust then
         drawTextDisabled(string.format('== %d ==', entry.number))
@@ -348,19 +363,11 @@ M.drawRollsWindow = function()
             drawAbilityTimer('Snake Eye', 210, abilities.getRemaining('Snake Eye'))
         end
         if hasRolls then
-            -- Oldest roll on top, each subsequent roll below it. The
-            -- active table is keyed by name (hash order), so collect the
-            -- rows and sort by when each roll landed.
-            local rows = {}
-            for name, entry in pairs(rolls.active) do
-                rows[#rows + 1] = { name = name, entry = entry }
-            end
-            table.sort(rows, function(a, b)
-                if a.entry.at ~= b.entry.at then return a.entry.at < b.entry.at end
-                return a.name < b.name
-            end)
-            for _, row in ipairs(rows) do
-                drawActiveRoll(row.name, row.entry)
+            -- Same-name rolls share one row with a member count; single
+            -- rolls and busts keep one row each - rolls.rows builds and
+            -- sorts the list.
+            for _, row in ipairs(rolls.rows()) do
+                drawActiveRoll(row)
             end
         else
             drawTextDisabled('(no active rolls)')
@@ -464,6 +471,21 @@ M.drawConfigWindow = function()
             cfg.save()
         end
 
+        -- Whose rolls the tracker follows, the same three-way choice
+        -- tTimers' buff tracker offers. Other Corsairs' rolls use the
+        -- base bonus tables and a 5:00 countdown - their gear and merits
+        -- can't be read.
+        local trackModes = { 'Self Only', 'Party', 'Alliance' }
+        local trackIdx = { 0 }
+        for i, name in ipairs(trackModes) do
+            if name == (cfg.settings.roll_track_mode or 'Self Only') then trackIdx[1] = i - 1 end
+        end
+        if imgui.Combo('Track rolls', trackIdx, 'Self Only\0Party\0Alliance\0\0') then
+            cfg.settings.roll_track_mode = trackModes[trackIdx[1] + 1] or 'Self Only'
+            cfg.save()
+        end
+        imgui.TextDisabled('  which Corsairs\' rolls to follow')
+
         local showWildCard = { cfg.settings.show_wild_card }
         if imgui.Checkbox('Show Wild Card window', showWildCard) then
             cfg.settings.show_wild_card = showWildCard[1]
@@ -552,6 +574,8 @@ M.drawConfigWindow = function()
         imgui.TextDisabled('/corhud rolls     - toggle Rolls window')
         imgui.TextDisabled('/corhud reference - toggle Reference window')
         imgui.TextDisabled('/corhud wildcard  - toggle Wild Card window')
+        imgui.TextDisabled('/corhud merits     - debug: dump the merit list read')
+        imgui.TextDisabled('/corhud rollpackets - debug: dump recent roll packets')
     end
     imgui.End()
 end

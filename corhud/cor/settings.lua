@@ -19,6 +19,12 @@ local default_settings = T{
     -- Rolls window
     rolls_pos       = { 160, 320 },
     rolls_opacity   = 0.85,
+    -- Whose rolls the tracker follows, tTimers-style: 'Self Only' |
+    -- 'Party' (any Corsair in the party) | 'Alliance' (any alliance
+    -- member). Other Corsairs' bonuses and countdowns use the base
+    -- tables and duration - their Phantom Roll+ gear and Winning Streak
+    -- merits can't be read.
+    roll_track_mode = 'Self Only',
     -- Roll reference window (its own window so it can stay up with no rolls)
     reference_pos   = { 160, 180 },
     show_reference  = false,   -- the full roll -> bonus table

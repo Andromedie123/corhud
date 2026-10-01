@@ -135,6 +135,44 @@ M.ROLL_IDS = {
     [391] = "Runeist's Roll",
 }
 
+-- The status-effect icon id each roll occupies on this client, so a
+-- roll's icon disappearing from the 0x076 party-buff snapshot (or the
+-- 0x063 self snapshot) can be matched back to the roll. Values are the
+-- Horizon timers fork's CorsairRolls table, cross-checked by the 0x063
+-- packet capture (Chaos Roll = 317, the fork's 105).
+M.ROLL_STATUS_IDS = {
+    [98]  = 310, [99]  = 311, [100] = 312, [101] = 313, [102] = 314,
+    [103] = 315, [104] = 316, [105] = 317, [106] = 318, [107] = 319,
+    [108] = 320, [109] = 321, [110] = 322, [111] = 323, [112] = 324,
+    [113] = 325, [114] = 326, [115] = 327, [116] = 328, [117] = 329,
+    [118] = 330, [119] = 331, [120] = 332, [121] = 333, [122] = 334,
+    [302] = 335, [303] = 336, [304] = 337, [305] = 338,
+    [390] = 339, [391] = 600,
+}
+
+-- The Bust debuff's icon id (also on the timers fork; sits just below
+-- the roll range, so merits.lua's roll detection never confuses it).
+M.BUST_ICON = 309
+
+-- First-target-action message ids that mean "the effect landed on this
+-- target block's character" - tTimers' applied-buff message set (the
+-- working reference on this client) plus 426, the timers fork's bust
+-- id. The recipient of a roll is whichever block carries one of these;
+-- for a roll cast on another member the packet leads with the caster's
+-- dice block instead.
+M.ROLL_RESULT_MSGS = {
+    [100] = true, [205] = true, [230] = true, [266] = true, [280] = true,
+    [319] = true, [420] = true, [421] = true, [424] = true, [425] = true,
+    [426] = true,
+}
+
+-- Inverse map for the snapshot diffs: icon id -> roll name.
+M.ROLL_ICON_NAMES = {}
+for abilityId, statusId in pairs(M.ROLL_STATUS_IDS) do
+    local name = M.ROLL_IDS[abilityId]
+    if name ~= nil then M.ROLL_ICON_NAMES[statusId] = name end
+end
+
 -- Per roll: lucky/unlucky call-out numbers, the bonus granted at each roll
 -- of 1-11 ('rolls'), the per-tier Double-Up 'effect' step used by certain
 -- neck/ring gear that boosts the 11 (see cor/rolls.lua bonus()), the bust
