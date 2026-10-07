@@ -45,7 +45,7 @@ Whenever you land one of your own Phantom Rolls, an entry appears with:
 - the actual bonus that roll gives, using the selected Phantom Roll+ table
 - whether the result was **LUCKY!**, **UNLUCKY!**, or neither
 - a countdown clock showing the time left on the roll
-- 
+
 <img width="314" height="111" alt="Screenshot 2026-09-30 1333001" src="https://github.com/user-attachments/assets/a2f52190-e9ee-4022-91c9-6a01ae7d1b45" />
 
 When several members hold the same roll, their rows merge into one
