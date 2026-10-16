@@ -45,22 +45,25 @@ Whenever you land one of your own Phantom Rolls, an entry appears with:
 
 When several members hold the same roll, their rows merge into one
 (tTimers-style): `Evoker's Roll [2]` with the roll info once and the
-soonest-expiring member's countdown - just the `[N]` count, no member
-names. Busts always keep their own row. Death clears a member's rolls
-with them (the entity-update and 0x029 death channels tTimers watches),
-so a dead member stops counting toward the `[N]`.
+soonest-expiring member's countdown; a row held by one member carries
+that member's name instead (`Bueller · Hunter's Roll`). Busts always
+keep their own row. Death clears a member's rolls with them (the
+entity-update and 0x029 death channels tTimers watches), so a dead
+member stops counting toward the `[N]`.
 
 Each member keeps their own entries, so the same roll up on two members
 at once merges into one counted row (see above), and a member's row
-clears the moment their roll fades - the addon diffs the party buff
-snapshots (0x076) and your own effect snapshots (0x063) against each
-roll's status icon, matches
-the "loses the effect of X Roll" chat lines per name, and falls back to
+clears the moment their roll fades - the addon reads the game's own
+effect-removal message (the action packet behind the "<name>'s <Roll>
+effect wears off." chat line, which fires even for removals that print
+nothing), diffs the party buff snapshots (0x076) and your own effect
+snapshots (0x063) against each roll's status icon, matches
+the game's "effect wears off" chat lines per name, and falls back to
 the detected duration plus a short grace. A successful Double-Up updates
-the roll's number and bonus in place without resetting the countdown
-(Double-Up keeps the roll's original expiry). The game caps any one
-member at two rolls; a third roll on them evicts their oldest, and the
-tracker mirrors that. A bust cancels the roll on the member it landed on
+the roll's number and bonus in place and restarts the countdown (Horizon
+refreshes a roll's duration when it is re-rolled). The game caps any one
+member at two rolls; a third roll on them evicts the roll with the
+shortest time left, and the tracker mirrors that. A bust cancels the roll on the member it landed on
 and tracks the Bust debuff on you, clearing when Fold removes it or the
 game reports it wearing off.
 
@@ -93,8 +96,9 @@ even with no rolls active. Turn them off with the
 **Show Fold/Snake Eye timers** setting.
 
 An entry clears itself the moment the game reports that roll's effect
-ended - from the party/self effect snapshots or the chat message, so a
-fade never waits for the countdown to reach zero. If every channel is
+ended - from the effect-removal message, the party/self effect
+snapshots, or the chat line, so a fade never waits for the countdown to
+reach zero. If every channel is
 missed (e.g. the member is out of range, or a disconnect), the entry
 also auto-clears just past the auto-detected roll duration, so nothing
 gets stuck.
@@ -119,10 +123,12 @@ result is received.
 | `/corhud` or `/ch` | Toggle the settings window |
 | `/corhud cards` | Toggle the Cards window on/off |
 | `/corhud rolls` | Toggle the Rolls window on/off |
+| `/corhud reference` | Toggle the Reference window on/off |
 | `/corhud wildcard` | Toggle the Wild Card window on/off |
+| `/corhud compact` | Toggle Compact mode (no window headers, one line per roll) |
 | `/corhud clear` | Forget tracked rolls, the Wild Card result, and the detected merits |
 | `/corhud merits` | Debug: print the client's merit list from memory |
-| `/corhud rollpackets` | Debug: dump the recent roll action packets (hex + parsed target blocks) |
+| `/corhud rollpackets` | Debug: append the recent roll action packets (hex + parsed target blocks) to `rollpackets.log` in the addon folder, so the dump doesn't scroll party chat away |
 
 ## Settings
 
@@ -133,6 +139,23 @@ set each window's background opacity, pick a text style (none / outline
 scale the HUD text. The windows can also just be dragged to reposition;
 each position is remembered per character.
 
+**Compact mode** strips the HUD down to its data. The Cards, Rolls,
+Reference and Wild Card windows drop their title line, and each Rolls
+row collapses to a single line:
+
+```
+You · Chaos Roll [3] == 9 == (L:5/U:8) 02:47
+```
+
+The second line - the `LUCKY!`/`UNLUCKY!`/`BUST!` tag, what the roll
+buffs, and the bonus it grants - is hidden, and the per-row separator
+rules go with it. The roll name keeps its status colour, so a LUCKY!
+or BUST! row still reads at a glance, and the Fold/Snake Eye timers
+and the card/window footers are unaffected. The Reference window keeps
+its column labels, since those label the numbers beneath them rather
+than title the window. The Wild Card popup keeps its result text and
+recast readout, and the settings window is unaffected either way.
+
 Phantom Roll+ is detected automatically from equipped HorizonXI gear:
 **Luzaf's Fang** (ear) and **Corsair's Culottes** (legs) each provide
 `Phantom Roll +1`, and stack together for the current `Phantom Roll +2`
@@ -140,6 +163,14 @@ cap.
 
 ## Notes
 
+- The Cards, Rolls, Roll Reference and Wild Card windows show only
+  while your main or sub job is Corsair (Quick Draw and Phantom Roll
+  are Corsair-only), so the HUD sits out every other job. Each
+  window's show/hide setting is remembered and roll tracking keeps
+  running underneath, so the HUD comes back fully populated on your
+  next COR job - main or sub. The settings window (`/corhud`) stays
+  reachable on any job, and every window reappears while it is open -
+  whatever the job - so the layout can still be moved around off-COR.
 - Roll tracking follows your own rolls by default; the **Track rolls**
   setting extends it to every Corsair in the party or alliance (the same
   three-way choice tTimers' buff tracker makes). Each entry is attributed
@@ -166,9 +197,16 @@ cap.
 - Phantom Roll+ tables use the HorizonXI main-job values published on the
   linked roll pages. Only verified values are included; missing `+2`
   values remain pending future wiki updates or in-game measurement
-  (Gallant's Roll +2 was measured in-game).
+  (Gallant's Roll +2 was measured in-game and since confirmed by the
+  wiki).
 - Wild Card's six outcomes follow Horizon's update patch notes; Corsair
   roll reference values follow the HorizonXI wiki pages:
   https://horizonffxi.wiki/Corsair
   https://horizonffxi.wiki/Hunter's_Roll
   https://horizonffxi.wiki/Chaos_Roll
+  https://horizonffxi.wiki/Drachen_Roll
+  https://horizonffxi.wiki/Gallant%27s_Roll
+  https://horizonffxi.wiki/Wizard%27s_Roll
+  https://horizonffxi.wiki/Healer%27s_Roll
+  https://horizonffxi.wiki/Beast_Roll
+  https://horizonffxi.wiki/Puppet_Roll
