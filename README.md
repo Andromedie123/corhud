@@ -4,6 +4,8 @@ An Ashita v4 ImGui addon for Corsair: how many Quick Draw cards you're
 carrying, and what your own Phantom Rolls and Wild Card actually landed at, in three
 small always-on-top windows instead of scrolling chat text.
 
+This addon has been approved to use in HorizonXI
+
 ## Installation
 
 Place the `corhud` folder into your Ashita `addons` directory, then in game:
