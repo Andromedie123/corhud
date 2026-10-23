@@ -2,7 +2,7 @@
 
 addon.name    = 'corhud'
 addon.author  = 'Andromedie, Claude'
-addon.version = '1.28'
+addon.version = '1.33'
 addon.desc    = 'Corsair HUD: Quick Draw cards, Phantom Roll tracking, and Winning Streak merit auto-detect.'
 addon.link    = 'https://github.com/Andromedie123/corhud'
 
