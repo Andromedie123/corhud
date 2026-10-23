@@ -30,7 +30,8 @@ coding: yellow when running low (12 or fewer loose cards, 3 or fewer
 cases), red when you're out.
 
 The footer shows the total card count and the total number of cases.
-Either line can be hidden separately (see Settings).
+Either line can be hidden separately (see Settings); Compact mode drops
+the footer bar entirely.
 
 ### Rolls window
 Whenever you land one of your own Phantom Rolls, an entry appears with:
@@ -151,10 +152,15 @@ The second line - the `LUCKY!`/`UNLUCKY!`/`BUST!` tag, what the roll
 buffs, and the bonus it grants - is hidden, and the per-row separator
 rules go with it. The roll name keeps its status colour, so a LUCKY!
 or BUST! row still reads at a glance, and the Fold/Snake Eye timers
-and the card/window footers are unaffected. The Reference window keeps
-its column labels, since those label the numbers beneath them rather
-than title the window. The Wild Card popup keeps its result text and
-recast readout, and the settings window is unaffected either way.
+are unaffected. The Cards window also drops its totals footer
+(separator included) along with the **Show card total** / **Show card
+cases** options, which come back when compact mode is switched off; if
+every card row is hidden there is then nothing left to show and the
+Cards window disappears rather than leaving an empty box. The
+Reference window keeps its column labels, since those label the
+numbers beneath them rather than title the window. The Wild Card popup
+keeps its result text and recast readout, and the settings window is
+unaffected either way.
 
 Phantom Roll+ is detected automatically from equipped HorizonXI gear:
 **Luzaf's Fang** (ear) and **Corsair's Culottes** (legs) each provide
