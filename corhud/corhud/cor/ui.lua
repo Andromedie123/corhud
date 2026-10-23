@@ -154,26 +154,34 @@ M.drawCardsWindow = function()
     if not hasCorsairJob() and not M.showConfig[1] then return end
     cards.refresh()
 
+    local shown = {}
+    for _, name in ipairs(D.CARD_NAMES) do
+        local count = cards.counts[name] and cards.counts[name].count or 0
+        local caseCount = cards.caseCounts[name] and cards.caseCounts[name].count or 0
+        local hasCases = cfg.settings.show_card_cases and caseCount > 0
+        if not cfg.settings.hide_zero_cards or count > 0 or hasCases then
+            shown[#shown + 1] = name
+        end
+    end
+    if cfg.settings.compact_mode and #shown == 0 and not M.showConfig[1] then return end
+
     local windowName = string.format('COR Cards###corhud_cards_%s', charName())
     local flags = bit.bor(ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_AlwaysAutoResize,
                            ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoNav)
 
     trackedWindow(windowName, 'cards_pos', flags, cfg.settings.cards_opacity, function()
         drawWindowHeader('Quick Draw Cards')
-        for _, name in ipairs(D.CARD_NAMES) do
-            local count = cards.counts[name] and cards.counts[name].count or 0
-            local caseCount = cards.caseCounts[name] and cards.caseCounts[name].count or 0
-            local hasCases = cfg.settings.show_card_cases and caseCount > 0
-            if not cfg.settings.hide_zero_cards or count > 0 or hasCases then
-                drawCardRow(name)
+        for _, name in ipairs(shown) do
+            drawCardRow(name)
+        end
+        if not cfg.settings.compact_mode then
+            imgui.Separator()
+            if cfg.settings.show_cards_total then
+                drawText(string.format('Total: %d', cards.total()))
             end
-        end
-        imgui.Separator()
-        if cfg.settings.show_cards_total then
-            drawText(string.format('Total: %d', cards.total()))
-        end
-        if cfg.settings.show_card_cases then
-            drawText(string.format('Cases: %d', cards.cases))
+            if cfg.settings.show_card_cases then
+                drawText(string.format('Cases: %d', cards.cases))
+            end
         end
     end)
 end
@@ -432,16 +440,18 @@ M.drawConfigWindow = function()
             cfg.save()
         end
 
-        local showCardsTotal = { cfg.settings.show_cards_total }
-        if imgui.Checkbox('Show card total', showCardsTotal) then
-            cfg.settings.show_cards_total = showCardsTotal[1]
-            cfg.save()
-        end
+        if not cfg.settings.compact_mode then
+            local showCardsTotal = { cfg.settings.show_cards_total }
+            if imgui.Checkbox('Show card total', showCardsTotal) then
+                cfg.settings.show_cards_total = showCardsTotal[1]
+                cfg.save()
+            end
 
-        local showCardCases = { cfg.settings.show_card_cases }
-        if imgui.Checkbox('Show card cases', showCardCases) then
-            cfg.settings.show_card_cases = showCardCases[1]
-            cfg.save()
+            local showCardCases = { cfg.settings.show_card_cases }
+            if imgui.Checkbox('Show card cases', showCardCases) then
+                cfg.settings.show_card_cases = showCardCases[1]
+                cfg.save()
+            end
         end
 
         local showReference = { cfg.settings.show_reference }

@@ -11,10 +11,16 @@ local FOREIGN_ROLL_DURATION = 300
 
 local BUST_DURATION = 300
 
+local FRESH_ROLL_LEAD = 1 -- seconds the server's roll clock leads its packet
+
 local PAIR_WINDOW = 5 -- seconds
 local pendingRolls = T{}   -- { rollName, abilityId, data, number, bonus, foreign, at }
 local unpairedIcons = T{}  -- memberId -> { icon -> at }
 local partyBuffIcons = T{} -- memberId -> { icon -> true }, last 0x076 lists
+local memberRollIcons = T{} -- memberId -> last logged 0x076 roll-icon list
+local seenRollIcons = T{}  -- memberId -> { icon -> true }, roll icons EVER in that member's list
+local unseenLogged = T{}   -- memberId -> { icon -> true }, "kept" notes already printed
+local selfBlockRolls = {}  -- roll icons in the local player's own 0x076 block (probe)
 
 local eventLog = {}
 local EVENT_MAX = 40
@@ -151,6 +157,7 @@ M.expire = function()
     end
     for charId, rollEntries in pairs(M.active) do
         if known ~= nil and not known[charId] then
+            logEvent('prune: member %d is not in the party table', charId)
             M.active[charId] = nil
         else
             for rollName, entry in pairs(rollEntries) do
@@ -343,7 +350,8 @@ local function pairIconWithPending(memberId, icon)
     for i, p in ipairs(pendingRolls) do
         if D.ROLL_STATUS_IDS[p.abilityId] == icon and now - p.at <= PAIR_WINDOW then
             table.remove(pendingRolls, i)
-            placeRoll(memberId, p.rollName, p.abilityId, p.data, p.number, p.bonus, p.foreign, p.at)
+            placeRoll(memberId, p.rollName, p.abilityId, p.data, p.number, p.bonus, p.foreign,
+                p.startAt or p.at)
             logEvent('paired pending %s (icon %d) -> member %d', p.rollName, icon, memberId)
             return
         end
@@ -366,6 +374,27 @@ M.onPartyBuffs = function(e)
         local memberId = struct.unpack('I', e.data, memberOffset)
         if memberId == 0 then
         elseif memberId == me then
+            local rollsHere = {}
+            for j = 0, 31 do
+                local high = ashita.bits.unpack_be(e.data_raw, memberOffset + 7, j * 2, 2)
+                local low = struct.unpack('B', e.data, memberOffset + 0x10 + j)
+                if low == 255 then break end
+                local icon = high * 256 + low
+                if D.ROLL_ICON_NAMES[icon] ~= nil or icon == D.BUST_ICON then
+                    rollsHere[#rollsHere + 1] = icon
+                end
+            end
+            local same = #rollsHere == #selfBlockRolls
+            if same then
+                for k, icon in ipairs(rollsHere) do
+                    if selfBlockRolls[k] ~= icon then same = false; break end
+                end
+            end
+            if not same then
+                logEvent('0x076 self block rolls: %s',
+                    #rollsHere > 0 and table.concat(rollsHere, ',') or '(none)')
+                selfBlockRolls = rollsHere
+            end
         else
             local hasIcon = T{}
             for j = 0, 31 do
@@ -375,8 +404,25 @@ M.onPartyBuffs = function(e)
                 hasIcon[high * 256 + low] = true
             end
             local iconCount = 0
-            for _ in pairs(hasIcon) do iconCount = iconCount + 1 end
-            logEvent('0x076 member %d: %d icons', memberId, iconCount)
+            local rollsHere = {}
+            local seen = seenRollIcons[memberId]
+            if seen == nil then
+                seen = T{}
+                seenRollIcons[memberId] = seen
+            end
+            for icon in pairs(hasIcon) do
+                iconCount = iconCount + 1
+                if D.ROLL_ICON_NAMES[icon] ~= nil or icon == D.BUST_ICON then
+                    rollsHere[#rollsHere + 1] = icon
+                    seen[icon] = true
+                end
+            end
+            table.sort(rollsHere)
+            local rollsText = #rollsHere > 0 and table.concat(rollsHere, ',') or '(none)'
+            if memberRollIcons[memberId] ~= rollsText then
+                logEvent('0x076 member %d: %d icons, rolls %s', memberId, iconCount, rollsText)
+                memberRollIcons[memberId] = rollsText
+            end
             local prev = partyBuffIcons[memberId]
             if prev ~= nil then
                 for icon in pairs(hasIcon) do
@@ -390,8 +436,22 @@ M.onPartyBuffs = function(e)
             if rollEntries ~= nil then
                 for rollName, entry in pairs(rollEntries) do
                     if entry.icon ~= nil and not hasIcon[entry.icon] then
-                        logEvent('fade: member %d lost %s (icon %d)', memberId, rollName, entry.icon)
-                        rollEntries[rollName] = nil
+                        if seen[entry.icon] then
+                            logEvent('fade: member %d lost %s (icon %d, ran %ds of %ds)',
+                                memberId, rollName, entry.icon, os.time() - entry.at, entry.duration or 0)
+                            rollEntries[rollName] = nil
+                        else
+                            local noted = unseenLogged[memberId]
+                            if noted == nil then
+                                noted = T{}
+                                unseenLogged[memberId] = noted
+                            end
+                            if not noted[entry.icon] then
+                                noted[entry.icon] = true
+                                logEvent('0x076: member %d never showed %s (icon %d); kept for the other fade channels',
+                                    memberId, rollName, entry.icon)
+                            end
+                        end
                     end
                 end
                 if next(rollEntries) == nil then M.active[memberId] = nil end
@@ -444,7 +504,8 @@ M.onSelfBuffs = function(e)
                     if rollName ~= nil then
                         local entry = rollEntries[rollName]
                         if entry ~= nil and not entry.bust then
-                            logEvent('fade: self lost %s (icon %d)', rollName, icon)
+                            logEvent('fade: self lost %s (icon %d, ran %ds of %ds)',
+                                rollName, icon, os.time() - entry.at, entry.duration or 0)
                             rollEntries[rollName] = nil
                         end
                     end
@@ -489,7 +550,8 @@ M.onActionMessage = function(e)
             if icon == D.BUST_ICON then
                 for rollName, entry in pairs(rollEntries) do
                     if entry.bust then
-                        logEvent('fade: 206 bust off %d', charId)
+                        logEvent('fade: 206 bust off %d (ran %ds of %ds)',
+                            charId, os.time() - entry.at, entry.duration or 0)
                         rollEntries[rollName] = nil
                     end
                 end
@@ -498,7 +560,8 @@ M.onActionMessage = function(e)
                 if rollName ~= nil then
                     local entry = rollEntries[rollName]
                     if entry ~= nil and not entry.bust then
-                        logEvent('fade: 206 cleared %s on %d (icon %d)', rollName, charId, icon)
+                        logEvent('fade: 206 cleared %s on %d (icon %d, ran %ds of %ds)',
+                            rollName, charId, icon, os.time() - entry.at, entry.duration or 0)
                         rollEntries[rollName] = nil
                     end
                 end
@@ -606,6 +669,54 @@ M.debug = function()
         say(entry)
     end
 
+    say('--- tracked state ---')
+    local me = selfId()
+    say('me = %s', tostring(me))
+    local anyTracked = false
+    for charId, rollEntries in pairs(M.active) do
+        anyTracked = true
+        local name = nil
+        if charId == me then
+            name = 'You'
+        else
+            local party = partyMgr()
+            if party ~= nil then
+                for i = 1, 17 do
+                    if party:GetMemberServerId(i) == charId then
+                        name = party:GetMemberName(i) or 'Unknown'
+                        break
+                    end
+                end
+            end
+        end
+        local icons = partyBuffIcons[charId]
+        local rolls = {}
+        if icons ~= nil then
+            for icon in pairs(icons) do
+                if D.ROLL_ICON_NAMES[icon] ~= nil or icon == D.BUST_ICON then
+                    rolls[#rolls + 1] = icon
+                end
+            end
+            table.sort(rolls)
+        end
+        say('member %d (%s): last 0x076 rolls %s', charId, name or 'NOT IN PARTY',
+            icons == nil and 'never seen' or (#rolls > 0 and table.concat(rolls, ',') or '(none)'))
+        for rollName, entry in pairs(rollEntries) do
+            say('   %s #%s, age %ds of %ds, icon %s%s%s', rollName, tostring(entry.number),
+                os.time() - entry.at, entry.duration or 0, tostring(entry.icon),
+                entry.bust and ' BUST' or '', entry.foreign and ' foreign' or '')
+        end
+    end
+    if not anyTracked then say('(no tracked rolls)') end
+    say('--- rows (what the window draws) ---')
+    local rows = M.rows()
+    if #rows == 0 then say('(no rows)') end
+    for _, r in ipairs(rows) do
+        say('%s #%s -> %s, %ds left', r.name, tostring(r.entry.number),
+            r.merged ~= nil and string.format('%d members', #r.merged) or tostring(r.owner),
+            (r.entry.at + (r.entry.duration or 0)) - os.time())
+    end
+
     local path = string.gsub(addon.path, '\\\\', '\\') .. 'rollpackets.log'
     local fileLines = { '--- /corhud rollpackets ' .. os.date('%Y-%m-%d %H:%M:%S') .. ' ---' }
     for _, line in ipairs(lines) do
@@ -626,10 +737,14 @@ end
 M.onPacketIn = function(e)
     if e.id == 0xB then
         M.zoning = true
+        if next(M.active) ~= nil then logEvent('zone: cleared all tracked rolls') end
         M.active = T{}
         equipSlots = T{} -- the new zone re-sends the 0x050 burst
         selfIcons = T{}
         partyBuffIcons = T{}
+        memberRollIcons = T{}
+        seenRollIcons = T{}
+        unseenLogged = T{}
         pendingRolls = T{}
         unpairedIcons = T{}
         return
@@ -750,15 +865,16 @@ M.onPacketIn = function(e)
     end
 
     if #recipients > 0 or isDoubleUp then
+        local startAt = os.time() - (isDoubleUp and 0 or FRESH_ROLL_LEAD)
         for _, rec in ipairs(recipients) do
             logEvent('attributed %s to member %d (msg %s)', rollName, rec.charId, tostring(rec.message))
-            placeRoll(rec.charId, rollName, abilityId, data, number, bonusText, foreign, os.time())
+            placeRoll(rec.charId, rollName, abilityId, data, number, bonusText, foreign, startAt)
         end
         if isDoubleUp then
             local actorRolls = M.active[actor]
             if actorRolls == nil or actorRolls[rollName] == nil then
                 logEvent('Double-Up: attributed to caster %d (no applied block)', actor)
-                placeRoll(actor, rollName, abilityId, data, number, bonusText, foreign, os.time())
+                placeRoll(actor, rollName, abilityId, data, number, bonusText, foreign, startAt)
             end
         end
         return
@@ -771,7 +887,8 @@ M.onPacketIn = function(e)
         if at ~= nil and now - at <= PAIR_WINDOW then
             memberIcons[statusId] = nil
             logEvent('paired %s via earlier icon -> member %d', rollName, memberId)
-            placeRoll(memberId, rollName, abilityId, data, number, bonusText, foreign, at)
+            placeRoll(memberId, rollName, abilityId, data, number, bonusText, foreign,
+                math.min(at, now - FRESH_ROLL_LEAD))
             return
         end
     end
@@ -784,55 +901,65 @@ M.onPacketIn = function(e)
         bonus     = bonusText,
         foreign   = foreign,
         at        = now,
+        startAt   = now - FRESH_ROLL_LEAD,
     }
 end
 
 M.onTextIn = function(e)
     if e.message == nil then return end
+    local msg = e.message:gsub('%c', '')
     if e.message:find('wears off', 1, true) or e.message:find('loses the effect of', 1, true)
         or e.message:find('effect disappears', 1, true) then
         logEvent('chat: %s', (e.message:gsub('%c', function(c)
             return string.format('\\%02X', string.byte(c))
         end)))
     end
-    if e.message:match('[Yy]ou use [Ff]old') then
+    if msg:match('[Yy]ou use [Ff]old') then
         M.removeBust()
     end
 
     local me = selfId()
-    local rollName = e.message:match('[Yy]ou lose the effect of (.-[Rr]oll)%.')
+    local rollName = msg:match('[Yy]ou lose the effect of (.-[Rr]oll)%.')
     if rollName == nil then
-        rollName = e.message:match('[Yy]our (.-[Rr]oll) effect wears off%.')
+        rollName = msg:match('[Yy]our (.-[Rr]oll) effect wears off%.')
     end
     if rollName ~= nil and me ~= nil then
         local rollEntries = M.active[me]
         if rollEntries ~= nil then
+            if rollEntries[rollName] ~= nil then
+                logEvent('chat: cleared %s on self', rollName)
+            end
             rollEntries[rollName] = nil
             if next(rollEntries) == nil then M.active[me] = nil end
         end
         return
     end
 
-    local who, theirRoll = e.message:match('([%a]+) loses the effect of (.-[Rr]oll)%.')
+    local who, theirRoll = msg:match('([%a]+) loses the effect of (.-[Rr]oll)%.')
     if who == nil then
-        who, theirRoll = e.message:match("([%a]+)'s (.-[Rr]oll) effect wears off%.")
+        who, theirRoll = msg:match("([%a]+)'s (.-[Rr]oll) effect wears off%.")
     end
     if who ~= nil and theirRoll ~= nil then
         local charId = memberIdByName(who)
         if charId ~= nil then
             local rollEntries = M.active[charId]
             if rollEntries ~= nil then
+                if rollEntries[theirRoll] ~= nil then
+                    logEvent('chat: cleared %s on member %d', theirRoll, charId)
+                end
                 rollEntries[theirRoll] = nil
                 if next(rollEntries) == nil then M.active[charId] = nil end
             end
+        else
+            logEvent('chat: no party member named %s', who)
         end
         return
     end
 
     local bustFaded =
-        e.message:match('[Yy]our [Bb]ust effect wears off%.') ~= nil
+        msg:match('[Yy]our [Bb]ust effect wears off%.') ~= nil
     if not bustFaded then
-        local who = e.message:match("([%a]+)'s [Bb]ust effect wears off%.")
+        local who = msg:match("([%a]+)'s [Bb]ust effect wears off%.")
         bustFaded = who ~= nil and me ~= nil and memberIdByName(who) == me
     end
     if bustFaded then
