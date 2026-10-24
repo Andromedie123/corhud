@@ -7,6 +7,8 @@ local default_settings = T{
     show_rolls      = true,
     show_wild_card  = true,
     lock_positions  = false,  -- NoMove on every window so the layout can't be dragged
+    hide_when_map_open = true,
+    hide_when_chat_expanded = true,
     cards_pos       = { 160, 440 },
     cards_opacity   = 0.85,
     hide_zero_cards = false,  -- hide cards with zero quantity from the list
@@ -46,6 +48,11 @@ if M.settings.text_outline ~= nil or M.settings.text_shadow ~= nil then
 end
 if M.settings.roll_timeout ~= nil then
     M.settings.roll_timeout = nil
+    migrated = true
+end
+if M.settings.hide_when_menu_open ~= nil then
+    M.settings.hide_when_map_open = M.settings.hide_when_menu_open
+    M.settings.hide_when_menu_open = nil
     migrated = true
 end
 if migrated then settings.save() end
