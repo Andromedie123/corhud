@@ -8,6 +8,7 @@ local wildCard = require('cor.wild_card')
 local merits = require('cor.merits')
 local abilities = require('cor.abilities')
 local cfg = require('cor.settings')
+local menu = require('cor.menu')
 
 local M = {}
 
@@ -68,6 +69,12 @@ local function hasCorsairJob()
     local player = AshitaCore:GetMemoryManager():GetPlayer()
     if player == nil then return false end
     return player:GetMainJob() == COR_JOB or player:GetSubJob() == COR_JOB
+end
+
+local function hudShouldHide()
+    if cfg.settings.hide_when_map_open and menu.IsMapOpen() then return true end
+    if cfg.settings.hide_when_chat_expanded and menu.IsChatExpanded() then return true end
+    return false
 end
 
 local function trackedWindow(id, posKey, flags, opacity, body)
@@ -153,6 +160,7 @@ M.drawCardsWindow = function()
     if not cfg.settings.show_cards then return end
     if not hasCorsairJob() and not M.showConfig[1] then return end
     cards.refresh()
+    if hudShouldHide() then return end
 
     local shown = {}
     for _, name in ipairs(D.CARD_NAMES) do
@@ -293,6 +301,7 @@ M.drawRollsWindow = function()
     if not cfg.settings.show_rolls then return end
     if not hasCorsairJob() and not M.showConfig[1] then return end
     rolls.expire()
+    if hudShouldHide() then return end
 
     local hasRolls = next(rolls.active) ~= nil
     local foldLeft = abilities.getRemaining('Fold')
@@ -325,6 +334,7 @@ end
 M.drawReferenceWindow = function()
     if not cfg.settings.show_reference then return end
     if not hasCorsairJob() and not M.showConfig[1] then return end
+    if hudShouldHide() then return end
 
     local windowName = string.format('COR Roll Reference###corhud_reference_%s', charName())
     local flags = bit.bor(ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_AlwaysAutoResize,
@@ -343,6 +353,7 @@ end
 M.drawWildCardWindow = function()
     if not cfg.settings.show_wild_card then return end
     if not hasCorsairJob() and not M.showConfig[1] then return end
+    if hudShouldHide() then return end
     local stale = wildCard.latest == nil or os.time() - wildCard.latest.at >= wildCard.POPUP_DURATION
     if stale and not M.showConfig[1] then return end
 
@@ -476,6 +487,19 @@ M.drawConfigWindow = function()
         local lockPositions = { cfg.settings.lock_positions }
         if imgui.Checkbox('Lock window positions', lockPositions) then
             cfg.settings.lock_positions = lockPositions[1]
+            cfg.save()
+        end
+
+        local hideMap = { cfg.settings.hide_when_map_open }
+        if imgui.Checkbox('Hide HUD while the map is open', hideMap) then
+            cfg.settings.hide_when_map_open = hideMap[1]
+            cfg.save()
+        end
+        imgui.TextDisabled('  the region map counts too; other menus leave the HUD up')
+
+        local hideChat = { cfg.settings.hide_when_chat_expanded }
+        if imgui.Checkbox('Hide HUD while chat is expanded', hideChat) then
+            cfg.settings.hide_when_chat_expanded = hideChat[1]
             cfg.save()
         end
 
