@@ -2,7 +2,7 @@
 
 addon.name    = 'corhud'
 addon.author  = 'Andromedie, Claude'
-addon.version = '1.33'
+addon.version = '1.36'
 addon.desc    = 'Corsair HUD: Quick Draw cards, Phantom Roll tracking, and Winning Streak merit auto-detect.'
 addon.link    = 'https://github.com/Andromedie123/corhud'
 
@@ -16,6 +16,7 @@ local merits = require('cor.merits')
 local abilities = require('cor.abilities')
 local ui    = require('cor.ui')
 local cfg   = require('cor.settings')
+local menu  = require('cor.menu')
 
 local function chatHeader(name)
     return string.char(0x1E, 0x07) .. '[' .. name .. ']' .. string.char(0x1E, 0x01) .. ' '
@@ -75,6 +76,8 @@ ashita.events.register('command', 'corhud_command', function(e)
         rolls.active = T{}
         wildCard.clear()
         merits.clear()
+    elseif args[2] == 'menu' then
+        menu.debug()
     elseif args[2] == 'merits' then
         merits.debug()
     elseif args[2] == 'rollpackets' then
