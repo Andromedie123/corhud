@@ -128,6 +128,7 @@ result is received.
 | `/corhud wildcard` | Toggle the Wild Card window on/off |
 | `/corhud compact` | Toggle Compact mode (no window headers, one line per roll) |
 | `/corhud clear` | Forget tracked rolls, the Wild Card result, and the detected merits |
+| `/corhud menu` | Debug: print the detected menu and chat-expanded state, and whether the HUD is hiding |
 | `/corhud merits` | Debug: print the client's merit list from memory |
 | `/corhud rollpackets` | Debug: append the recent roll action packets (hex + parsed target blocks) to `rollpackets.log` in the addon folder, so the dump doesn't scroll party chat away |
 
@@ -135,9 +136,10 @@ result is received.
 
 Opened with `/corhud`. Lets you show/hide each window, toggle the
 Fold/Snake Eye recast timers, hide the card total or card case lines,
-set each window's background opacity, pick a text style (none / outline
-/ drop shadow) so the HUD stays readable even at 0.00 opacity, and
-scale the HUD text. The windows can also just be dragged to reposition;
+hide the whole HUD while the map is open or chat is expanded, set
+each window's background opacity, pick a text style (none / outline /
+drop shadow) so the HUD stays readable even at 0.00 opacity, and scale
+the HUD text. The windows can also just be dragged to reposition;
 each position is remembered per character.
 
 **Compact mode** strips the HUD down to its data. The Cards, Rolls,
@@ -161,6 +163,20 @@ Reference window keeps its column labels, since those label the
 numbers beneath them rather than title the window. The Wild Card popup
 keeps its result text and recast readout, and the settings window is
 unaffected either way.
+
+**Hide while the map is open** (on by default) steps every HUD window -
+Cards, Rolls, Reference and Wild Card - out of the way while the map
+(or the region map) is up, the way XIUI's modules do, and brings them
+straight back when it closes. Every other menu - inventory, equipment,
+magic, abilities, party - leaves the HUD where it is, so the card counts
+stay readable while you pull cards or cases out of a bag. **Hide while
+chat is expanded** (also on by default) does the same when the chat log
+is pulled up - the input line, the scrollback, or the maximized chat
+window - so the HUD gets out of the way while you type or read back
+through chat. Both are separate checkboxes, and the settings window is
+never hidden by either. If a client update ever breaks the detection
+the HUD simply stays visible - `/corhud menu` prints what the detector
+currently sees.
 
 Phantom Roll+ is detected automatically from equipped HorizonXI gear:
 **Luzaf's Fang** (ear) and **Corsair's Culottes** (legs) each provide
